@@ -1,0 +1,90 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+}
+
+version = "${minecraft_version}-" + project.mod_version
+group = "fr0nick.${project.mod_id}"
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+    
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+    }
+    
+    maven {
+        name = "Create Maven"
+        url = "https://maven.createmod.net"
+    }
+}
+
+configurations {
+    lambJar
+}
+
+neoForge {
+    version = project.neoforge_version
+
+    mods {
+        "${project.mod_id}" {
+            sourceSet project.sourceSets.main
+        }
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+        }
+    }
+}
+
+dependencies {
+    implementation "maven.modrinth:create:${project.create_version}"
+    
+    implementation "net.createmod.catnip:Catnip-NeoForge-${project.minecraft_version}:0.8.44"
+    
+    compileOnly "net.createmod.ponder:Ponder-NeoForge-${project.minecraft_version}:1.0.46"
+    
+    lambJar("maven.modrinth:lambdynamiclights:${project.lambdynlights_version}") {
+        transitive = false
+    }
+    compileOnly files({
+        zipTree(configurations.lambJar.singleFile).matching {
+            include 'META-INF/jars/*-neoforge.jar'
+        }
+    })
+    
+    compileOnly "maven.modrinth:sable:${project.sable_version}"
+}
+
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : project.minecraft_version,
+            neoforge_version       : project.neoforge_version,
+            mod_id                 : project.mod_id,
+            mod_name               : project.mod_name,
+            mod_license            : project.mod_license,
+            mod_version            : project.mod_version,
+            mod_authors            : project.mod_authors,
+            mod_description        : project.mod_description,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
