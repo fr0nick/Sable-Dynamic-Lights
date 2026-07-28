@@ -1,12 +1,16 @@
 package fr0nick.sabledynlights;
 
 import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
+import fr0nick.sabledynlights.virtual.VirtualLightManager;
+import fr0nick.sabledynlights.virtual.VirtualSableLightManager;
 import net.minecraft.world.entity.Entity;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import fr0nick.sabledynlights.lamb.create.ContraptionEntityEventHandler;
 import fr0nick.sabledynlights.lamb.sable.SableSubLevelEventHandler;
@@ -16,21 +20,16 @@ public class LambModEventHandler {
 
     @SubscribeEvent
     public static void onEntityJoinWorld(EntityJoinLevelEvent event) {
-        if (event.getLevel().isClientSide()) {
-            Entity entity = event.getEntity();
-            if (entity instanceof AbstractContraptionEntity contraptionEntity) {
-                ContraptionEntityEventHandler.onContraptionEntityJoin(contraptionEntity);
-            }
+        if (event.getLevel().isClientSide() && event.getEntity() instanceof AbstractContraptionEntity contraptionEntity) {
+            ContraptionEntityEventHandler.onContraptionEntityJoin(contraptionEntity);
+            VirtualLightManager.onClientTick();
         }
     }
 
     @SubscribeEvent
     public static void onEntityLeaveWorld(EntityLeaveLevelEvent event) {
-        if (event.getLevel().isClientSide()) {
-            Entity entity = event.getEntity();
-            if (entity instanceof AbstractContraptionEntity contraptionEntity) {
-                ContraptionEntityEventHandler.onContraptionEntityLeave(contraptionEntity);
-            }
+        if (event.getLevel().isClientSide() && event.getEntity() instanceof AbstractContraptionEntity contraptionEntity) {
+            ContraptionEntityEventHandler.onContraptionEntityLeave(contraptionEntity);
         }
     }
 
@@ -39,6 +38,22 @@ public class LambModEventHandler {
         if (event.getLevel().isClientSide()) {
             ContraptionEntityEventHandler.onTick(event.getLevel());
             SableSubLevelEventHandler.onTick(event.getLevel());
+            VirtualLightManager.onClientTick();
+            VirtualSableLightManager.onClientTick();
+        }
+    }
+
+    @SubscribeEvent
+    public static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+        VirtualLightManager.clearAll();
+        VirtualSableLightManager.clearAll();
+    }
+
+    @SubscribeEvent
+    public static void onLevelUnload(LevelEvent.Unload event) {
+        if (event.getLevel().isClientSide()) {
+            VirtualLightManager.clearAll();
+            VirtualSableLightManager.clearAll();
         }
     }
 }

@@ -5,7 +5,6 @@ import com.simibubi.create.content.contraptions.Contraption;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
-import fr0nick.sabledynlights.lamb.LambDynLightsDelegate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +44,6 @@ public class ContraptionEntityEventHandler {
     }
 
     public static void onTick(Level level) {
-        LambDynLightsDelegate.flushPendingSources();
         ArrayList<AbstractContraptionEntity> toRemove = new ArrayList<>();
 
         for (AbstractContraptionEntity entity : scheduledToAddContraptionEntities) {

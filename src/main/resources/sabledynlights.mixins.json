@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "fr0nick.sabledynlights.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LevelRendererMixin",
+    "VirtualRenderWorldMixin",
+    "LightEngineMixin",
+    "SodiumLightDataAccessMixin",
+    "BlockLightEngineEmissionMixin",
+    "BlockAndTintGetterMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -46,7 +46,6 @@ public final class SableReflection {
         try {
             return Optional.ofNullable(getContainerMethod.invoke(null, level));
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to access Sable sub-level container", e);
             return Optional.empty();
         }
     }
@@ -57,7 +56,6 @@ public final class SableReflection {
             Object result = getAllSubLevelsMethod.invoke(container);
             return result instanceof List<?> list ? list : List.of();
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to list Sable sub-levels", e);
             return List.of();
         }
     }
@@ -68,7 +66,6 @@ public final class SableReflection {
             Object result = getUniqueIdMethod.invoke(subLevel);
             return result instanceof UUID uuid ? uuid : null;
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to read Sable sub-level id", e);
             return null;
         }
     }
@@ -79,7 +76,6 @@ public final class SableReflection {
             Object result = isRemovedMethod.invoke(subLevel);
             return result instanceof Boolean bool && bool;
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to read Sable sub-level removal state", e);
             return true;
         }
     }
@@ -92,7 +88,6 @@ public final class SableReflection {
             Object result = getLoadedChunksMethod.invoke(plot);
             return result instanceof Collection<?> collection ? collection : Collections.emptyList();
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to read Sable loaded chunks", e);
             return List.of();
         }
     }
@@ -103,13 +98,12 @@ public final class SableReflection {
             Object result = getChunkMethod.invoke(plotChunkHolder);
             return result instanceof LevelChunk chunk ? chunk : null;
         } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to read Sable plot chunk", e);
             return null;
         }
     }
 
     public static Vec3 transformPosition(Object subLevel, Vec3 plotPosition) {
-        if (!isAvailable()) return plotPosition;
+        if (!isAvailable() || subLevel == null || plotPosition == null) return plotPosition;
         try {
             Object pose = logicalPoseMethod.invoke(subLevel);
             if (pose == null) return plotPosition;
@@ -118,7 +112,6 @@ public final class SableReflection {
                 try {
                     return clazz.getMethod("transformPosition", Vec3.class);
                 } catch (NoSuchMethodException e) {
-                    SableDynLightsMod.LOGGER.debug("Sable pose type [{}] has no Vec3 transformPosition method", clazz.getName(), e);
                     return null;
                 }
             });
@@ -126,8 +119,7 @@ public final class SableReflection {
             if (transformPosition == null) return plotPosition;
             Object result = transformPosition.invoke(pose, plotPosition);
             return result instanceof Vec3 vec3 ? vec3 : plotPosition;
-        } catch (InvocationTargetException | IllegalAccessException e) {
-            SableDynLightsMod.LOGGER.debug("Unable to transform Sable plot position", e);
+        } catch (Throwable e) {
             return plotPosition;
         }
     }
@@ -157,7 +149,6 @@ public final class SableReflection {
                     SableDynLightsMod.LOGGER.info("Sable Dynamic Lights detected Sable; sub-level dynamic lights are available.");
                 } catch (LinkageError | ReflectiveOperationException e) {
                     available = false;
-                    SableDynLightsMod.LOGGER.warn("Sable is installed, but its dynamic-light bridge could not initialize. Sable support will stay disabled.", e);
                 }
             }
         }

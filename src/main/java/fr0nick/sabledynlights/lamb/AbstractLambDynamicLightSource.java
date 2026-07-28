@@ -1,18 +1,30 @@
 package fr0nick.sabledynlights.lamb;
 
 import dev.lambdaurora.lambdynlights.DynamicLightSource;
-import it.unimi.dsi.fastutil.longs.LongIterator;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import it.unimi.dsi.fastutil.longs.LongSet;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.LevelRenderer;
+import fr0nick.sabledynlights.util.LightUpdateNotifier;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.core.SectionPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 
+/**
+ * Base class for this mod's own "synthetic" dynamic light sources: {@code SableDynLightSource} and
+ * {@code CreateDynLightSource}, which project a glowing block found inside a Sable sub-level or Create
+ * contraption outward, to wherever that structure currently appears in the world.
+ * <p>
+ * Implements the (deprecated-but-still-present-for-1.21.1) {@link DynamicLightSource} interface directly - this
+ * mod has a required, compile-time dependency on LambDynamicLights, so there's no need to go through reflection
+ * here (contrast with the optional Sable integration in {@code SableReflection}).
+ * <p>
+ * Registration/removal ({@code setDynamicLightEnabled}) and the vanilla-chunk-rebuild bookkeeping
+ * ({@code lambdynlights$getTrackedLitChunkPos}/{@code lambdynlights$setTrackedLitChunkPos}, used by
+ * {@code getDynamicLightChunksToRebuild}) are intentionally left as the interface's own default implementations:
+ * LambDynamicLights' own engine drives those automatically once a source is registered, and reimplementing them
+ * here previously caused registration state to silently desync from LambDynamicLights' real internal set (fixed by
+ * removing that override).
+ */
 @SuppressWarnings({"deprecation", "removal"})
 public abstract class AbstractLambDynamicLightSource implements DynamicLightSource {
     protected Level level;
@@ -21,13 +33,20 @@ public abstract class AbstractLambDynamicLightSource implements DynamicLightSour
     protected int luminance;
     private int previousLuminance;
     protected boolean removed;
-    private boolean enabled = true;
     private long previousUpdateMillis;
     private LongOpenHashSet trackedLitChunkPositions;
+
+    /** Separate from {@link #previousPosition}/{@link #previousLuminance}, which LambDynamicLights' own default
+     * {@code getDynamicLightChunksToRebuild} implementation reads/writes via
+     * {@code getDynamicLightPrevX/Y/Z}/{@code updateDynamicLightPreviousCoordinates} - keeping our own
+     * Flywheel-notification bookkeeping in separate fields avoids the two tracking systems stepping on each other. */
+    private Vec3 flywheelNotifiedPosition;
+    private int flywheelNotifiedLuminance;
 
     protected AbstractLambDynamicLightSource(Level level, int luminance) {
         this.position = Vec3.ZERO;
         this.previousPosition = Vec3.ZERO;
+        this.flywheelNotifiedPosition = Vec3.ZERO;
         this.trackedLitChunkPositions = new LongOpenHashSet();
         this.level = level;
         this.luminance = luminance;
@@ -43,9 +62,15 @@ public abstract class AbstractLambDynamicLightSource implements DynamicLightSour
     public double getDynamicLightX() { return this.position.x(); }
     public double getDynamicLightY() { return this.position.y(); }
     public double getDynamicLightZ() { return this.position.z(); }
-    
-    public Level getDynamicLightWorld() { return this.level; }
+
     public Level getDynamicLightLevel() { return this.level; }
+
+    /**
+     * @return the entity this light source is derived from (e.g. a Create contraption entity), or {@code null} if
+     * it isn't tied to one. Used by {@code VirtualSableLightManager} to check whether the source's position is
+     * already local to a Sable sub-level (see that class' docs) rather than a normal world position.
+     */
+    public net.minecraft.world.entity.Entity getTrackedEntity() { return null; }
 
     public void resetDynamicLight() { this.previousLuminance = 0; }
 
@@ -68,10 +93,37 @@ public abstract class AbstractLambDynamicLightSource implements DynamicLightSour
     public double getDynamicLightPrevZ() { return this.previousPosition.z(); }
 
     public void dynamicLightTick() {
-        if (this.level != null && this.level.isClientSide()) {
-            this.syncPositionAndLuminance(false);
-            LambDynLightsDelegate.updateTracking(this);
+        if (this.level == null || !this.level.isClientSide()) return;
+
+        this.syncPositionAndLuminance(false);
+        LambDynLightsDelegate.updateTracking(this);
+        this.notifyFlywheelIfChanged();
+    }
+
+    /**
+     * Notifies Flywheel (Create's renderer) so it can refresh any per-instance cached light values, whenever this
+     * source's position or luminance has meaningfully changed since the last notification. Throttled the same way
+     * LambDynamicLights throttles its own per-source updates ({@link #shouldUpdateDynamicLight()}), since this
+     * only needs to be approximately current, not per-tick-exact.
+     */
+    private void notifyFlywheelIfChanged() {
+        if (!this.shouldUpdateDynamicLight()) return;
+
+        int currentLuminance = this.getLuminance();
+        boolean changed = this.removed
+                || Math.abs(this.position.x() - this.flywheelNotifiedPosition.x()) > 0.1
+                || Math.abs(this.position.y() - this.flywheelNotifiedPosition.y()) > 0.1
+                || Math.abs(this.position.z() - this.flywheelNotifiedPosition.z()) > 0.1
+                || currentLuminance != this.flywheelNotifiedLuminance;
+        if (!changed) return;
+
+        LightUpdateNotifier.notifyLightChanged(BlockPos.containing(this.flywheelNotifiedPosition));
+        if (!this.removed) {
+            LightUpdateNotifier.notifyLightChanged(BlockPos.containing(this.position));
         }
+
+        this.flywheelNotifiedPosition = this.position;
+        this.flywheelNotifiedLuminance = currentLuminance;
     }
 
     public boolean shouldUpdateDynamicLight() {
@@ -84,45 +136,6 @@ public abstract class AbstractLambDynamicLightSource implements DynamicLightSour
         return true;
     }
 
-    public boolean lambdynlights$updateDynamicLight(LevelRenderer renderer) {
-        if (!this.shouldUpdateDynamicLight()) return false;
-        
-        this.syncPositionAndLuminance(false);
-        int currentLuminance = this.getLuminance();
-        boolean changed = this.removed || 
-            Math.abs(this.position.x() - this.previousPosition.x()) > 0.1 || 
-            Math.abs(this.position.y() - this.previousPosition.y()) > 0.1 || 
-            Math.abs(this.position.z() - this.previousPosition.z()) > 0.1 || 
-            currentLuminance != this.previousLuminance;
-            
-        if (!changed) return false;
-        
-        this.updateDynamicLightPreviousCoordinates();
-        this.previousLuminance = currentLuminance;
-        LongOpenHashSet newTrackedChunks = new LongOpenHashSet();
-        
-        if (currentLuminance > 0 && !this.removed) {
-            this.trackLitChunks(renderer, newTrackedChunks);
-        }
-
-        this.lambdynlights$scheduleTrackedChunksRebuild(renderer);
-        this.trackedLitChunkPositions = newTrackedChunks;
-        return true;
-    }
-
-    public void lambdynlights$scheduleTrackedChunksRebuild(LevelRenderer renderer) {
-        if (Minecraft.getInstance().level == this.level) {
-            LongIterator var2 = this.trackedLitChunkPositions.iterator();
-            while (var2.hasNext()) {
-                long packedPos = var2.nextLong();
-                LambDynLightsDelegate.scheduleChunkRebuild(renderer, packedPos);
-            }
-        }
-    }
-
-    public void setDynamicLightEnabled(boolean enabled) { this.enabled = enabled; }
-    public boolean isDynamicLightEnabled() { return this.enabled; }
-
     public LongSet lambdynlights$getTrackedLitChunkPos() { return this.trackedLitChunkPositions; }
 
     public void lambdynlights$setTrackedLitChunkPos(LongSet set) {
@@ -130,30 +143,6 @@ public abstract class AbstractLambDynamicLightSource implements DynamicLightSour
             this.trackedLitChunkPositions = (LongOpenHashSet) set;
         } else {
             this.trackedLitChunkPositions = new LongOpenHashSet(set);
-        }
-    }
-
-    private void trackLitChunks(LevelRenderer renderer, LongOpenHashSet newTrackedChunks) {
-        int blockX = Mth.floor(this.position.x());
-        int blockY = Mth.floor(this.position.y());
-        int blockZ = Mth.floor(this.position.z());
-        BlockPos.MutableBlockPos chunkPos = new BlockPos.MutableBlockPos(SectionPos.blockToSectionCoord(blockX), SectionPos.blockToSectionCoord(blockY), SectionPos.blockToSectionCoord(blockZ));
-        
-        LambDynLightsDelegate.updateTrackedChunks(chunkPos, this.trackedLitChunkPositions, newTrackedChunks, renderer);
-        Direction directionX = (blockX & 15) >= 8 ? Direction.EAST : Direction.WEST;
-        Direction directionY = (blockY & 15) >= 8 ? Direction.UP : Direction.DOWN;
-        Direction directionZ = (blockZ & 15) >= 8 ? Direction.SOUTH : Direction.NORTH;
-
-        for (int i = 0; i < 7; ++i) {
-            if (i % 4 == 0) chunkPos.move(directionX);
-            else if (i % 4 == 1) chunkPos.move(directionZ);
-            else if (i % 4 == 2) chunkPos.move(directionX.getOpposite());
-            else {
-                chunkPos.move(directionZ.getOpposite());
-                chunkPos.move(directionY);
-            }
-
-            LambDynLightsDelegate.updateTrackedChunks(chunkPos, this.trackedLitChunkPositions, newTrackedChunks, renderer);
         }
     }
 }

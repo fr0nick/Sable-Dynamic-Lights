@@ -6,7 +6,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
-import fr0nick.sabledynlights.SableDynLightsMod;
 import fr0nick.sabledynlights.lamb.LambDynLightsDelegate;
 
 import java.util.ArrayList;
@@ -54,9 +53,10 @@ public final class SableSubLevelEventHandler {
                         SableDynLightSourceHolder.INSTANCE.clear();
                     } else {
                         Set<UUID> loadedSubLevels = new HashSet<>();
+                        List<?> subLevels = SableReflection.getAllSubLevels(container.get());
 
-                        for (Object subLevel : SableReflection.getAllSubLevels(container.get())) {
-                            if (subLevel != null && !SableReflection.isSubLevelRemoved(subLevel)) {
+                        for (Object subLevel : subLevels) {
+                            if (subLevel != null) {
                                 UUID subLevelId = SableReflection.getSubLevelId(subLevel);
                                 if (subLevelId != null) {
                                     loadedSubLevels.add(subLevelId);
@@ -88,7 +88,6 @@ public final class SableSubLevelEventHandler {
                 }
             }
         }
-
         return candidates;
     }
 

@@ -20,6 +20,21 @@ repositories {
         name = "Create Maven"
         url = "https://maven.createmod.net"
     }
+
+    // Sable Companion: a small, MIT-licensed, standalone compatibility library published by Sable's author.
+    // It lets us look up / transform positions for Sable sub-levels without a hard dependency on Sable itself
+    // (it safely no-ops via its own bundled default implementation when Sable isn't installed).
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "RyanHCode Maven"
+                url = "https://maven.ryanhcode.dev/releases"
+            }
+        }
+        filter {
+            includeGroup("dev.ryanhcode.sable-companion")
+        }
+    }
 }
 
 configurations {
@@ -65,6 +80,15 @@ dependencies {
     })
     
     compileOnly "maven.modrinth:sable:${project.sable_version}"
+
+    // Bundled (Jar-in-Jar) so it's always present at runtime, even without Sable installed; NeoForge's JiJ
+    // dependency resolution will deduplicate against Sable's own bundled copy when both are present, picking
+    // whichever version satisfies both ranges (same pattern Sable itself uses for this exact library).
+    jarJar(implementation("dev.ryanhcode.sable-companion:sable-companion-common-${project.minecraft_version}:[${project.sable_companion_version},)")) {
+        version {
+            prefer project.sable_companion_version
+        }
+    }
 }
 
 tasks.withType(ProcessResources).configureEach {

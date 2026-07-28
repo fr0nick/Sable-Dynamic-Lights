@@ -21,6 +21,11 @@ public class CreateDynLightSource extends AbstractLambDynamicLightSource {
     }
 
     @Override
+    public net.minecraft.world.entity.Entity getTrackedEntity() {
+        return this.contraptionEntity;
+    }
+
+    @Override
     protected void syncPositionAndLuminance(boolean force) {
         Level entityLevel = this.contraptionEntity.level();
         if (entityLevel != null) {
