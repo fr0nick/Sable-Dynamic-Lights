@@ -3,7 +3,7 @@ package fr0nick.sabledynlights;
 import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
 import fr0nick.sabledynlights.virtual.VirtualLightManager;
 import fr0nick.sabledynlights.virtual.VirtualSableLightManager;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -14,6 +14,8 @@ import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import fr0nick.sabledynlights.lamb.create.ContraptionEntityEventHandler;
 import fr0nick.sabledynlights.lamb.sable.SableSubLevelEventHandler;
+
+import java.util.List;
 
 @EventBusSubscriber(modid = SableDynLightsMod.MODID, value = Dist.CLIENT)
 public class LambModEventHandler {
@@ -38,8 +40,13 @@ public class LambModEventHandler {
         if (event.getLevel().isClientSide()) {
             ContraptionEntityEventHandler.onTick(event.getLevel());
             SableSubLevelEventHandler.onTick(event.getLevel());
-            VirtualLightManager.onClientTick();
-            VirtualSableLightManager.onClientTick();
+
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                List<VirtualLightManager.LightCandidate> candidates = VirtualLightManager.collectActiveLightCandidates(mc);
+                VirtualLightManager.onClientTick(candidates);
+                VirtualSableLightManager.onClientTick(candidates);
+            }
         }
     }
 

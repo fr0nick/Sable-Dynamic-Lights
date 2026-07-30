@@ -3,7 +3,6 @@ package fr0nick.sabledynlights.lamb;
 import dev.lambdaurora.lambdynlights.DynamicLightSource;
 import dev.lambdaurora.lambdynlights.engine.source.EntityDynamicLightSourceBehavior;
 import fr0nick.sabledynlights.SableDynLightsMod;
-import fr0nick.sabledynlights.util.LightUpdateNotifier;
 import net.minecraft.core.BlockPos;
 
 import java.lang.reflect.Field;
@@ -114,11 +113,6 @@ public final class LambDynLightsDelegate {
             ldlInstance = null;
             SableDynLightsMod.LOGGER.warn("Could not initialize LambDynamicLights integration: " + t);
         }
-    }
-
-    /** Notifies Flywheel (Create's renderer) that light changed at a world position. */
-    public static void notifyLightChanged(BlockPos pos) {
-        LightUpdateNotifier.notifyLightChanged(pos);
     }
 
     public static void updateTracking(DynamicLightSource source) {

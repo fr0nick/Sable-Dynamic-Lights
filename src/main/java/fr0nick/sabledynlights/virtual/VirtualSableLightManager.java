@@ -98,7 +98,18 @@ public final class VirtualSableLightManager {
 
     private VirtualSableLightManager() {}
 
+    /**
+     * Self-contained tick: collects active lights itself. Prefer {@link #onClientTick(List)} when a candidate
+     * list is already available (see {@code LambModEventHandler}), to avoid scanning LambDynamicLights' active
+     * sources twice per tick.
+     */
     public static void onClientTick() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        onClientTick(VirtualLightManager.collectActiveLightCandidates(mc));
+    }
+
+    public static void onClientTick(List<VirtualLightManager.LightCandidate> candidates) {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -108,7 +119,7 @@ public final class VirtualSableLightManager {
         // world-space positions bridged back out from "contained" entities (see collectDynamicLight).
         Map<BlockPos, Integer> worldBridgePositions = new HashMap<>();
 
-        collectDynamicLight(level, mc, perSubLevel, worldBridgePositions);
+        collectDynamicLight(level, candidates, perSubLevel, worldBridgePositions);
         VirtualLightManager.syncExternalPositions(WORLD_BRIDGE_OWNER, worldBridgePositions);
 
         refreshStaticCacheIfDue(level, mc);
@@ -150,9 +161,8 @@ public final class VirtualSableLightManager {
     // (bounded by the small number of currently active dynamic lights), so this runs fresh every tick.
     // ---------------------------------------------------------------------------------------------------------
 
-    private static void collectDynamicLight(ClientLevel level, Minecraft mc, Map<UUID, Map<BlockPos, Integer>> perSubLevel,
-                                             Map<BlockPos, Integer> worldBridgePositions) {
-        List<VirtualLightManager.LightCandidate> candidates = VirtualLightManager.collectActiveLightCandidates(mc);
+    private static void collectDynamicLight(ClientLevel level, List<VirtualLightManager.LightCandidate> candidates,
+                                              Map<UUID, Map<BlockPos, Integer>> perSubLevel, Map<BlockPos, Integer> worldBridgePositions) {
         if (candidates.isEmpty()) return;
 
         for (VirtualLightManager.LightCandidate candidate : candidates) {

@@ -65,7 +65,22 @@ public final class VirtualLightManager {
         return max;
     }
 
+    /**
+     * Self-contained tick: collects active lights itself. Used by call sites that don't already have a candidate
+     * list handy (e.g. when a contraption entity joins the world outside the main tick loop).
+     */
     public static void onClientTick() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+        onClientTick(collectActiveLightCandidates(mc));
+    }
+
+    /**
+     * Same as {@link #onClientTick()}, but reuses a candidate list already collected by the caller (see
+     * {@code LambModEventHandler}, which collects it once per tick and shares it with
+     * {@link VirtualSableLightManager} too) instead of re-scanning LambDynamicLights' active sources again.
+     */
+    public static void onClientTick(List<LightCandidate> candidates) {
         Minecraft mc = Minecraft.getInstance();
         ClientLevel level = mc.level;
         if (level == null) return;
@@ -73,7 +88,10 @@ public final class VirtualLightManager {
         LevelLightEngine worldLightEngine = level.getLightEngine();
         if (worldLightEngine == null) return;
 
-        Map<BlockPos, Integer> current = collectActiveWorldLightPositions(mc);
+        Map<BlockPos, Integer> current = new HashMap<>();
+        for (LightCandidate candidate : candidates) {
+            current.merge(candidate.pos(), candidate.luminance(), Math::max);
+        }
         applyDiff(worldPositions, current, worldLightEngine);
 
         worldPositions.clear();
@@ -174,7 +192,7 @@ public final class VirtualLightManager {
      * legitimate light source for a nearby sub-level too) plus the local player's held-item light. Shared between
      * the main-world tracker below and {@link VirtualSableLightManager}.
      */
-    static List<LightCandidate> collectActiveLightCandidates(Minecraft mc) {
+    public static List<LightCandidate> collectActiveLightCandidates(Minecraft mc) {
         List<LightCandidate> current = new ArrayList<>();
 
         if (LambDynLightsDelegate.isAvailable()) {
@@ -209,15 +227,6 @@ public final class VirtualLightManager {
         if (source instanceof Entity entity) return entity;
         if (source instanceof AbstractLambDynamicLightSource abstractSource) return abstractSource.getTrackedEntity();
         return null;
-    }
-
-    /** Flattened, entity-agnostic view of {@link #collectActiveLightCandidates}, for the plain world-space tracker below. */
-    static Map<BlockPos, Integer> collectActiveWorldLightPositions(Minecraft mc) {
-        Map<BlockPos, Integer> current = new HashMap<>();
-        for (LightCandidate candidate : collectActiveLightCandidates(mc)) {
-            current.merge(candidate.pos(), candidate.luminance(), Math::max);
-        }
-        return current;
     }
 
     private static int getLightEmission(ItemStack stack) {

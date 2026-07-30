@@ -28,7 +28,7 @@ public final class SableReflection {
     private static Method getPlotMethod;
     private static Method getLoadedChunksMethod;
     private static Method getChunkMethod;
-    private static final ConcurrentMap<Class<?>, Method> TRANSFORM_POSITION_METHODS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Class<?>, Optional<Method>> TRANSFORM_POSITION_METHODS = new ConcurrentHashMap<>();
 
     private SableReflection() {}
 
@@ -108,16 +108,16 @@ public final class SableReflection {
             Object pose = logicalPoseMethod.invoke(subLevel);
             if (pose == null) return plotPosition;
 
-            Method transformPosition = TRANSFORM_POSITION_METHODS.computeIfAbsent(pose.getClass(), clazz -> {
+            Optional<Method> transformPosition = TRANSFORM_POSITION_METHODS.computeIfAbsent(pose.getClass(), clazz -> {
                 try {
-                    return clazz.getMethod("transformPosition", Vec3.class);
+                    return Optional.of(clazz.getMethod("transformPosition", Vec3.class));
                 } catch (NoSuchMethodException e) {
-                    return null;
+                    return Optional.empty();
                 }
             });
 
-            if (transformPosition == null) return plotPosition;
-            Object result = transformPosition.invoke(pose, plotPosition);
+            if (transformPosition.isEmpty()) return plotPosition;
+            Object result = transformPosition.get().invoke(pose, plotPosition);
             return result instanceof Vec3 vec3 ? vec3 : plotPosition;
         } catch (Throwable e) {
             return plotPosition;

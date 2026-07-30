@@ -1,6 +1,5 @@
 package fr0nick.sabledynlights.mixin;
 
-import fr0nick.sabledynlights.lamb.LambDynLightsDelegate;
 import fr0nick.sabledynlights.util.WorldPosResolver;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.BlockAndTintGetter;
@@ -18,10 +17,9 @@ public interface BlockAndTintGetterMixin {
         if (layer == LightLayer.BLOCK && pos != null) {
             int vanilla = cir.getReturnValueI();
             if (vanilla < 15) {
-                BlockPos worldPos = WorldPosResolver.resolveWorldPos((BlockAndTintGetter) this, pos);
-                int dynamic = LambDynLightsDelegate.getDynamicLightLevel(worldPos);
-                if (dynamic > vanilla) {
-                    cir.setReturnValue(dynamic);
+                int combined = WorldPosResolver.getCombinedWorldLight((BlockAndTintGetter) this, pos, vanilla);
+                if (combined > vanilla) {
+                    cir.setReturnValue(combined);
                 }
             }
         }
