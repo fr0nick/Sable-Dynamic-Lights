@@ -1,6 +1,5 @@
 package fr0nick.sabledynlights.util;
 
-import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
 import dev.ryanhcode.sable.companion.SableCompanion;
 import dev.ryanhcode.sable.companion.SubLevelAccess;
 import fr0nick.sabledynlights.lamb.LambDynLightsDelegate;
@@ -28,7 +27,36 @@ public final class WorldPosResolver {
     private static final ConcurrentMap<Class<?>, Optional<Method>> TO_GLOBAL_VEC_METHODS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<Class<?>, Field[]> DECLARED_FIELDS_CACHE = new ConcurrentHashMap<>();
 
+    /**
+     * Create's contraption entity type and its {@code toGlobalVector} method, looked up reflectively so this class
+     * carries no compile-time reference to Create - it sits on the light engine's hot path and must load whether
+     * or not Create is installed. Both are {@code null} without Create, which makes the field scan below cache an
+     * empty result per class and this whole path a no-op.
+     */
+    private static final Class<?> CONTRAPTION_ENTITY_CLASS = findClass(
+            "com.simibubi.create.content.contraptions.AbstractContraptionEntity");
+    private static final Method CONTRAPTION_TO_GLOBAL_VECTOR = findToGlobalVector(CONTRAPTION_ENTITY_CLASS);
+
     private WorldPosResolver() {}
+
+    private static Class<?> findClass(String name) {
+        try {
+            return Class.forName(name);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Method findToGlobalVector(Class<?> cls) {
+        if (cls == null) return null;
+        try {
+            Method m = cls.getMethod("toGlobalVector", Vec3.class, float.class);
+            m.setAccessible(true);
+            return m;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
 
     public static int getCombinedWorldLight(BlockAndTintGetter level, BlockPos pos, int currentLight) {
         if (pos == null || currentLight >= 15) return currentLight;
@@ -129,9 +157,10 @@ public final class WorldPosResolver {
         // per class, then checked by runtime value below - matching the original behavior, without re-enumerating
         // every field of the class on every single call.
         Field[] fields = DECLARED_FIELDS_CACHE.computeIfAbsent(levelClass, clazz -> {
+            if (CONTRAPTION_ENTITY_CLASS == null) return new Field[0];
             List<Field> candidates = new ArrayList<>();
             for (Field f : clazz.getDeclaredFields()) {
-                if (f.getType().isAssignableFrom(AbstractContraptionEntity.class)) {
+                if (f.getType().isAssignableFrom(CONTRAPTION_ENTITY_CLASS)) {
                     f.setAccessible(true);
                     candidates.add(f);
                 }
@@ -142,8 +171,9 @@ public final class WorldPosResolver {
         for (Field f : fields) {
             try {
                 Object obj = f.get(level);
-                if (obj instanceof AbstractContraptionEntity entity) {
-                    return BlockPos.containing(entity.toGlobalVector(center, 1.0f));
+                if (obj != null && CONTRAPTION_TO_GLOBAL_VECTOR != null && CONTRAPTION_ENTITY_CLASS.isInstance(obj)) {
+                    Object res = CONTRAPTION_TO_GLOBAL_VECTOR.invoke(obj, center, 1.0f);
+                    if (res instanceof Vec3 vec) return BlockPos.containing(vec);
                 }
             } catch (Throwable ignored) {}
         }

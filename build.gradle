@@ -64,10 +64,13 @@ neoForge {
 }
 
 dependencies {
-    implementation "maven.modrinth:create:${project.create_version}"
-    
-    implementation "net.createmod.catnip:Catnip-NeoForge-${project.minecraft_version}:0.8.44"
-    
+    // Create is an OPTIONAL dependency (see neoforge.mods.toml): every Create-typed code path is gated behind
+    // CreateCompat.LOADED, so these are needed to compile against but must NOT be forced onto the run classpath.
+    // For a with-Create test run, pass -PwithCreate=true (see below).
+    compileOnly "maven.modrinth:create:${project.create_version}"
+
+    compileOnly "net.createmod.catnip:Catnip-NeoForge-${project.minecraft_version}:0.8.44"
+
     compileOnly "net.createmod.ponder:Ponder-NeoForge-${project.minecraft_version}:1.0.46"
     
     lambJar("maven.modrinth:lambdynamiclights:${project.lambdynlights_version}") {
@@ -88,6 +91,22 @@ dependencies {
         version {
             prefer project.sable_companion_version
         }
+    }
+}
+
+
+// Create is compileOnly, so the dev client runs WITHOUT it by default - which is the configuration this fork
+// exists to support, and therefore the one worth testing by default. `-PwithCreate=true` puts Create back on the
+// run classpath to check the contraption path still works.
+//
+// NOTE: the Modrinth Maven publishes no dependency metadata, so this pulls Create alone. Create additionally needs
+// Flywheel, Ponder, Catnip and Registrate present as real mods to boot; if it fails to load, drop those jars into
+// `run/mods/` instead, which is the more reliable way to test a full Create install.
+if (project.hasProperty('withCreate') && project.withCreate.toBoolean()) {
+    dependencies {
+        runtimeOnly "maven.modrinth:create:${project.create_version}"
+        runtimeOnly "net.createmod.catnip:Catnip-NeoForge-${project.minecraft_version}:0.8.44"
+        runtimeOnly "net.createmod.ponder:Ponder-NeoForge-${project.minecraft_version}:1.0.46"
     }
 }
 

@@ -1,6 +1,6 @@
 package fr0nick.sabledynlights;
 
-import com.simibubi.create.content.contraptions.AbstractContraptionEntity;
+import fr0nick.sabledynlights.compat.CreateCompat;
 import fr0nick.sabledynlights.virtual.VirtualLightManager;
 import fr0nick.sabledynlights.virtual.VirtualSableLightManager;
 import net.minecraft.client.Minecraft;
@@ -22,23 +22,25 @@ public class LambModEventHandler {
 
     @SubscribeEvent
     public static void onEntityJoinWorld(EntityJoinLevelEvent event) {
-        if (event.getLevel().isClientSide() && event.getEntity() instanceof AbstractContraptionEntity contraptionEntity) {
-            ContraptionEntityEventHandler.onContraptionEntityJoin(contraptionEntity);
+        if (CreateCompat.LOADED && event.getLevel().isClientSide()
+                && ContraptionEntityEventHandler.onEntityJoin(event.getEntity())) {
             VirtualLightManager.onClientTick();
         }
     }
 
     @SubscribeEvent
     public static void onEntityLeaveWorld(EntityLeaveLevelEvent event) {
-        if (event.getLevel().isClientSide() && event.getEntity() instanceof AbstractContraptionEntity contraptionEntity) {
-            ContraptionEntityEventHandler.onContraptionEntityLeave(contraptionEntity);
+        if (CreateCompat.LOADED && event.getLevel().isClientSide()) {
+            ContraptionEntityEventHandler.onEntityLeave(event.getEntity());
         }
     }
 
     @SubscribeEvent
     public static void onTick(LevelTickEvent.Post event) {
         if (event.getLevel().isClientSide()) {
-            ContraptionEntityEventHandler.onTick(event.getLevel());
+            if (CreateCompat.LOADED) {
+                ContraptionEntityEventHandler.onTick(event.getLevel());
+            }
             SableSubLevelEventHandler.onTick(event.getLevel());
 
             Minecraft mc = Minecraft.getInstance();

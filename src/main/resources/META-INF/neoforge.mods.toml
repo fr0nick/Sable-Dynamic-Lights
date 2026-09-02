@@ -22,7 +22,7 @@ side="CLIENT"
 
 [[dependencies.${mod_id}]]
 modId="create"
-type="required"
+type="optional"
 versionRange="[6.0.0,)"
 ordering="AFTER"
 side="CLIENT"
